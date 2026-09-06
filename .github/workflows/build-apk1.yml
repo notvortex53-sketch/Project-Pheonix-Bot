@@ -11,12 +11,9 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Locate project (unzip if needed, find gradlew anywhere)
+      - name: Locate project (unzip if needed)
         id: prepare
         run: |
-          echo "Top-level repo contents:"
-          ls -la
-
           zipfile=$(find . -iname "*.zip" | head -n 1)
           if [ -n "$zipfile" ]; then
             echo "Found zip: $zipfile — extracting into ./extracted"
@@ -24,14 +21,14 @@ jobs:
             unzip -oq "$zipfile" -d extracted
           fi
 
-          gradlew_path=$(find . -maxdepth 6 -name "gradlew" | head -n 1)
-          if [ -z "$gradlew_path" ]; then
-            echo "::error::Could not find a 'gradlew' file anywhere in the repo."
-            find . -maxdepth 4
+          settings_path=$(find . -maxdepth 6 -name "settings.gradle.kts" | head -n 1)
+          if [ -z "$settings_path" ]; then
+            echo "::error::Could not find settings.gradle.kts anywhere in the repo."
+            find . -maxdepth 5
             exit 1
           fi
 
-          project_dir=$(dirname "$gradlew_path")
+          project_dir=$(dirname "$settings_path")
           echo "Found project at: $project_dir"
           echo "project_dir=$project_dir" >> "$GITHUB_OUTPUT"
 
@@ -41,13 +38,12 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Grant execute permission for gradlew
-        working-directory: ${{ steps.prepare.outputs.project_dir }}
-        run: chmod +x gradlew
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Build debug APK
         working-directory: ${{ steps.prepare.outputs.project_dir }}
-        run: ./gradlew assembleDebug --stacktrace
+        run: gradle assembleDebug --stacktrace
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

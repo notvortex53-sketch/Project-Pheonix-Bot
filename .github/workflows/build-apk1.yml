@@ -11,14 +11,29 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Unzip source if present
+      - name: Locate project (unzip if needed, find gradlew anywhere)
+        id: prepare
         run: |
-          shopt -s nullglob
-          zips=(*.zip)
-          if [ ${#zips[@]} -gt 0 ]; then
-            echo "Found ${zips[0]}, extracting..."
-            unzip -oq "${zips[0]}" -d .
+          echo "Top-level repo contents:"
+          ls -la
+
+          zipfile=$(find . -iname "*.zip" | head -n 1)
+          if [ -n "$zipfile" ]; then
+            echo "Found zip: $zipfile — extracting into ./extracted"
+            mkdir -p extracted
+            unzip -oq "$zipfile" -d extracted
           fi
+
+          gradlew_path=$(find . -maxdepth 6 -name "gradlew" | head -n 1)
+          if [ -z "$gradlew_path" ]; then
+            echo "::error::Could not find a 'gradlew' file anywhere in the repo."
+            find . -maxdepth 4
+            exit 1
+          fi
+
+          project_dir=$(dirname "$gradlew_path")
+          echo "Found project at: $project_dir"
+          echo "project_dir=$project_dir" >> "$GITHUB_OUTPUT"
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -27,13 +42,15 @@ jobs:
           java-version: '17'
 
       - name: Grant execute permission for gradlew
+        working-directory: ${{ steps.prepare.outputs.project_dir }}
         run: chmod +x gradlew
 
       - name: Build debug APK
+        working-directory: ${{ steps.prepare.outputs.project_dir }}
         run: ./gradlew assembleDebug --stacktrace
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: phoenix-assistant-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          path: ${{ steps.prepare.outputs.project_dir }}/app/build/outputs/apk/debug/*.apk

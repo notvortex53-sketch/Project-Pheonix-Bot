@@ -1,29 +1,19 @@
-name: Build APK
+name: Build Android App Bundle (AAB)
 
 on:
   push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
 
-      - name: Locate and unzip source if present
-        run: |
-          echo "Repo contents before unzip:"
-          ls -la
-          zipfile=$(find . -maxdepth 3 -iname "*.zip" | head -n 1)
-          if [ -n "$zipfile" ]; then
-            echo "Found zip: $zipfile — extracting..."
-            unzip -oq "$zipfile" -d .
-          else
-            echo "No zip file found anywhere in repo."
-          fi
-          echo "Repo contents after unzip:"
-          ls -la
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -31,14 +21,17 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Grant execute permission for gradlew
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Make Gradle Wrapper Executable
         run: chmod +x gradlew
 
-      - name: Build debug APK
-        run: ./gradlew assembleDebug --stacktrace
+      - name: Build Release Bundle (AAB)
+        run: ./gradlew bundleRelease --stacktrace
 
-      - name: Upload APK artifact
+      - name: Upload AAB Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: phoenix-assistant-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          name: phoenix-assistant-release-aab
+          path: app/build/outputs/bundle/release/*.aab
